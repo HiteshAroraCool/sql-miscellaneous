@@ -1,1 +1,1 @@
-sql partice
+sql practice

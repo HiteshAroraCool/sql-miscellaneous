@@ -410,3 +410,54 @@ ROUND(100 * customers / (
 SELECT COUNT(DISTINCT customer_id)     
 FROM dbo.subscriptions),1) AS percentage 
 FROM customer_breakdown GROUP BY plan_id, customers ORDER BY plan_id;
+
+with trial as (
+  select *
+  from dbo.subscriptions
+  where plan_id = 0
+),
+
+annual as (
+  select *
+  from dbo.subscriptions
+  where plan_id = 3
+)
+
+select round(avg(a.start_date - t.start_date),1) as avg_day 
+from annual as a join trial as t
+on a.customer_id = t.customer_id;
+
+with trial as (
+  select *
+  from dbo.subscriptions
+  where plan_id = 0
+),
+
+annual as (
+  select *
+  from dbo.subscriptions
+  where plan_id = 3
+),
+
+bins as (
+  SELECT
+  WIDTH_BUCKET(a.start_date - t.start_date, 0, 360, 12) AS bucket
+  from annual as a join trial as t
+  on a.customer_id = t.customer_id
+)
+
+select 
+((bucket - 1)*30 || '-' || (bucket)*30|| ' day') as days,
+count(*) as customer
+from bins
+group by bucket
+order by bucket;
+
+select count(*) as downgraded
+from (
+select *,
+    lead(plan_id,1) over (partition by customer_id order by start_date) as next_plan
+from dbo.subscriptions) a
+where plan_id = 2
+and next_plan = 1
+and date_part('year', start_date) = '2020';

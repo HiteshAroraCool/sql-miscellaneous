@@ -1,0 +1,32 @@
+select count(distinct customer_id) from dbo.subscriptions;
+
+select
+	Date_PART('Month', start_date) as month_date,
+    to_char(start_date, 'month') as month_name,
+    count(*) as trial_subscriptions
+from dbo.subscriptions
+group by 1,2
+order by 1;
+
+select
+    p.plan_name,
+    p.plan_id,
+    count(*) as trial_subscriptions
+from 
+dbo.subscriptions as s join dbo.plans as p
+on s.plan_id = p.plan_id
+where 
+	date_part('year', s.start_date) > 2020
+group by 1,2
+order by 2;
+
+select 
+	p.plan_name,
+    count(distinct s.*) as subscriptions,
+    round(100 * count(distinct s.*)::NUMERIC/
+    (select count(distinct customer_id) from dbo.subscriptions),1) as precentage
+from dbo.subscriptions as s join dbo.plans as p
+on s.plan_id = p.plan_id
+where p.plan_name = 'churn'
+group by 1
+order by 1;

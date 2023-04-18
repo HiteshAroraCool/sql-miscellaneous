@@ -30,3 +30,52 @@ on s.plan_id = p.plan_id
 where p.plan_name = 'churn'
 group by 1
 order by 1;
+
+select count(*) as churn_count,
+	round(100* count(*)/(SELECT COUNT(DISTINCT customer_id) FROM dbo.subscriptions),0) AS churn_percentage
+from
+(
+select 
+	s.customer_id,
+	s.plan_id,
+    p.plan_name,
+    row_number() over (partition by s.customer_id order by s.plan_id) as plan_rank
+from dbo.subscriptions as s join dbo.plans as p
+on s.plan_id = p.plan_id
+) a
+where plan_id = 4 and plan_rank = 2;
+
+
+select plan_id,
+	plan_name,
+	count(plan_id)
+from
+(
+select 
+	s.customer_id,
+	s.plan_id,
+    p.plan_name,
+    row_number() over (partition by s.customer_id order by s.plan_id) as plan_rank
+from dbo.subscriptions as s join dbo.plans as p
+on s.plan_id = p.plan_id
+) a
+where plan_rank != 1
+group by 1,plan_name
+order by plan_id;
+
+with next_plan_ctr as(
+select customer_id,
+	plan_id,
+    LEAD(plan_id, 1) over (partition by customer_id ORDER BY plan_id) as next_plan
+FROM dbo.subscriptions)
+
+select
+    next_plan,
+	count(*) AS conversions,  
+    ROUND(100 * COUNT(*)/ 
+    (SELECT COUNT(DISTINCT customer_id) FROM dbo.subscriptions),0) AS conversion_percentage
+from next_plan_ctr as n join dbo.plans as p
+on n.plan_id = p.plan_id
+where next_plan is not null and n.plan_id = 0
+group by 1
+order by 1;

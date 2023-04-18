@@ -1,0 +1,227 @@
+with writing as 
+(
+select * 
+from 
+(
+select  student_id ,school  ,
+row_number() over (partition by school order by sat_writing) as rank1, 
+case when 1=1 then 'sat_writing' else null end as subject
+from  tutorial.sat_scores 
+)  as p 
+where rank1  <= 5 ) ,
+math as 
+(
+select * 
+from 
+(
+select  student_id ,school  ,
+row_number() over (partition by school order by sat_math) as rank1, 
+case when 1=1 then 'sat_math' else null end as subject
+from  tutorial.sat_scores 
+)  as p 
+where rank1  <= 5 ) ,
+verbal as 
+(
+select * 
+from 
+(
+select  student_id ,school  ,
+row_number() over (partition by school order by sat_verbal) as rank1, 
+case when 1=1 then 'sat_verbal' else null end as subject
+from  tutorial.sat_scores 
+)  as p 
+where rank1  <= 5 ) ,
+score as (
+select *  from  writing 
+union all  
+select *  from  math 
+union all  
+select *  from  verbal 
+) ,
+join_cte as (
+select a.*,b.student_id as sat_verbal_sid
+from score as a 
+join score as b 
+on a.school = b.school 
+and a.rank1 = b.rank1
+where b.subject  = 'sat_verbal'
+and a.subject = 'sat_writing'
+) , 
+join_cte1 as (
+select a.*,b.student_id as sat_math_sid
+from score as a 
+join score as b 
+on a.school = b.school 
+and a.rank1 = b.rank1
+where b.subject  = 'sat_math'
+and a.subject = 'sat_writing'
+) 
+select a.school,a.rank1,a.student_id as sat_writing_sid,a.sat_verbal_sid ,b.sat_math_sid
+from join_cte as a
+join join_cte1 as b  
+on a.school = b.school 
+and a.rank1 = b.rank1 ;
+
+## datetime 
+
+select  start_time , 
+extract(day from  start_time) as day_starttime, 
+extract(month from  start_time) as month_starttime, 
+extract(year from  start_time) as year_starttime, 
+extract(quarter from  start_time) as quarter_starttime, 
+extract(week from  start_time) as week_starttime, 
+extract(century from  start_time) as century_starttime,
+extract(doy from  start_time) as doy_starttime,
+extract(dow from  start_time) as dow_starttime, 
+extract(minute from  start_time) as min_starttime,
+extract(hour from  start_time) as hr_starttime,
+extract(second from  start_time) as second_starttime,
+extract(decade from  start_time) as decade_starttime, 
+extract(millennium from  start_time) as millenium_starttime
+from  tutorial.dc_bikeshare_q1_2012  ;
+
+# lastquery 
+# Approach 1
+
+select  category_code ,  count(within_3years) as companies_within3 ,
+count(within_5years) as companies_within5, 
+count(within_10years) as companies_within10 , count(*) as total_companies 
+from 
+(
+select  *  , 
+case when  difference_years <=  3 then 1 else null end as within_3years, 
+case when  difference_years <=  5 and difference_years > 3  then 1 else null end as within_5years, 
+case when  difference_years <=  10 and difference_years > 5 then 1 else null end as within_10years
+from  
+(
+select  category_code,c.permalink, c.founded_at_clean ,  a.acquired_at_cleaned , 
+date_part('day',a.acquired_at_cleaned  - date(c.founded_at_clean))/365  as difference_years
+from   tutorial.crunchbase_acquisitions_clean_date  as a
+left  join  tutorial.crunchbase_companies_clean_date as c
+on  a.company_permalink  =  c.permalink 
+where c.founded_at_clean  is not null 
+) as p 
+)  as q 
+group by category_code
+;  
+
+
+# Approach 2  
+select  category_code ,  count(within_3years) as companies_within3 ,
+count(within_5years) as companies_within5, 
+count(within_10years) as companies_within10 , count(*) as total_companies 
+from 
+(
+select  *  , 
+case when  difference_years <=  3 then 1 else null end as within_3years, 
+case when  difference_years <=  5 and difference_years > 3  then 1 else null end as within_5years, 
+case when  difference_years <=  10 and difference_years > 5 then 1 else null end as within_10years
+from  
+(
+select  category_code,c.permalink, c.founded_at_clean ,  a.acquired_at_cleaned , 
+extract(year from date(c.founded_at_clean)) as founded_year , 
+extract(year from a.acquired_at_cleaned ) as aquisition_year ,  
+extract(year from a.acquired_at_cleaned ) - extract( year from date(c.founded_at_clean)) as difference_years
+from   tutorial.crunchbase_acquisitions_clean_date  as a
+left  join  tutorial.crunchbase_companies_clean_date as c
+on  a.company_permalink  =  c.permalink 
+where c.founded_at_clean  is not null 
+) as p 
+)  as q 
+group by category_code
+;
+
+## Assignment solution 
+
+SELECT
+  category_code,
+  count(within_1year) AS companies_within1,
+  count(within_2years) AS companies_within2,
+  count(within_3years) AS companies_within3,
+  count(*) AS total_companies
+FROM
+  (
+    SELECT
+      *,
+      CASE
+        WHEN difference_years <= 1 THEN 1
+        ELSE NULL
+      END AS within_1year,
+      CASE
+        WHEN difference_years <= 2
+        AND difference_years > 1 THEN 1
+        ELSE NULL
+      END AS within_2years,
+      CASE
+        WHEN difference_years <= 3
+        AND difference_years > 2 THEN 1
+        ELSE NULL
+      END AS within_3years
+    FROM
+      (
+        SELECT
+          category_code,
+          c.permalink,
+          c.founded_at_clean,
+          a.acquired_at_cleaned,
+          date_part(
+            'day',
+            a.acquired_at_cleaned - date(c.founded_at_clean)
+          ) / 365 AS difference_years
+        FROM
+          tutorial.crunchbase_acquisitions_clean_date AS a
+          LEFT JOIN tutorial.crunchbase_companies_clean_date AS c ON a.company_permalink = c.permalink
+        WHERE
+          c.founded_at_clean IS NOT NULL
+      ) AS p
+  ) AS q
+where category_code  is not null
+GROUP BY
+  category_code;
+
+# Approach 2 for assignment 
+
+with dates_join as (
+        SELECT
+          category_code,
+          c.permalink,
+          c.founded_at_clean,
+          a.acquired_at_cleaned,
+          date_part(
+            'day',
+            a.acquired_at_cleaned - date(c.founded_at_clean)
+          ) / 365 AS difference_years
+        FROM
+          tutorial.crunchbase_acquisitions_clean_date AS a
+          LEFT JOIN tutorial.crunchbase_companies_clean_date AS c
+          ON a.company_permalink = c.permalink
+        WHERE
+          c.founded_at_clean IS NOT NULL  )  ,
+  cases_dates as(
+    SELECT
+      *,
+      CASE
+        WHEN difference_years <= 1 THEN 1
+        ELSE NULL
+      END AS within_1year,
+      CASE
+        WHEN difference_years <= 2
+        AND difference_years > 1 THEN 1
+        ELSE NULL
+      END AS within_2years,
+      CASE
+        WHEN difference_years <= 3
+        AND difference_years > 2 THEN 1
+        ELSE NULL
+      END AS within_3years
+    FROM dates_join 
+    ) 
+  select 
+   category_code,
+  count(within_1year) AS companies_within1,
+  count(within_2years) AS companies_within2,
+  count(within_3years) AS companies_within3,
+  count(*) AS total_companies
+  from cases_dates 
+  where category_code is not null 
+  group by category_code;

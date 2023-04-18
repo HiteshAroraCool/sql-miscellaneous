@@ -386,3 +386,27 @@ on n.plan_id = p.plan_id
 where next_plan is not null and n.plan_id = 0
 group by 1
 order by 1;
+
+WITH next_plan AS
+( SELECT   
+customer_id,   
+plan_id,   
+start_date,  
+LEAD(start_date, 1) OVER(PARTITION BY customer_id ORDER BY start_date) as next_date 
+FROM dbo.subscriptions 
+WHERE start_date <= '2020-12-31' ),
+customer_breakdown AS (  SELECT     
+plan_id,     
+COUNT(DISTINCT customer_id) AS customers  
+FROM next_plan  
+WHERE     
+(next_date IS NOT NULL AND (start_date < '2020-12-31'       
+AND next_date > '2020-12-31'))    
+OR (next_date IS NULL AND start_date < '2020-12-31')  
+GROUP BY plan_id 
+SELECT plan_id, 
+customers,   
+ROUND(100 * customers / (    
+SELECT COUNT(DISTINCT customer_id)     
+FROM dbo.subscriptions),1) AS percentage 
+FROM customer_breakdown GROUP BY plan_id, customers ORDER BY plan_id;

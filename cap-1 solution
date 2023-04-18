@@ -1,0 +1,207 @@
+Q )  What is the most purchased item on the menu and how many times was it purchased by all customers?
+
+select  s.product_id , m.product_name ,
+count(s.order_date) as times_sold
+from dbo.sales  as s
+join dbo.menu as m
+on  s.product_id  =  m.product_id 
+group by  s.product_id,m.product_name
+ORDER BY 3 desc
+LIMIT 1 ; 
+
+Q )  Which item was the most popular one for each customer?
+
+select  *  from 
+(
+select * ,   
+dense_rank() over (partition by q.customer_id order by q.times_bought  DESC) as product_rank 
+FROM 
+(
+select s.customer_id , s.product_id,m.product_name, count(s.order_date) as times_bought
+from dbo.sales  as s
+join dbo.menu as m
+on  s.product_id  =  m.product_id   
+group by s.customer_id , s.product_id , m.product_name
+ORDER BY 1  , 4 DESC
+) as q 
+) as r 
+where r.product_rank = 1;
+
+
+Q)  What was the first item from the menu purchased by each customer? 
+
+select distinct r.customer_id, r.product_name
+from 
+(
+select  *, 
+dense_rank()  over (partition by q.customer_id order by q.order_date) 
+as first_purchase 
+from 
+(
+select s.customer_id , s.product_id,m.product_name ,s.order_date
+from dbo.sales  as s
+join dbo.menu as m
+on  s.product_id  =  m.product_id   
+ORDER BY 1,4 
+) as q
+) as r 
+where r.first_purchase  = 1
+;  
+
+Q )  How many days has each customer visited the restaurant? 
+
+SELECT customer_id , count(distinct(order_date))  as times_visisted
+FROM dbo.sales  
+group by customer_id ; 
+
+
+Q)  What is the total amount each customer spent at the restaurant? 
+
+select  q.customer_id  , SUM(q.amount_spent_product) as total_spent
+from 
+(
+select  p.customer_id,p.product_id, p.product_name,p.times_bought,m.price,
+p.times_bought*m.price as amount_spent_product
+from  
+(
+select s.customer_id , s.product_id , m.product_name , 
+count(s.order_date) as times_bought 
+from dbo.sales  as s
+join dbo.menu  as m
+on s.product_id = m.product_id 
+group by s.customer_id , s.product_id , m.product_name
+order by 1 
+)  as p 
+join dbo.menu as m 
+on p.product_id = m.product_id
+order by 1
+) as q 
+group by q.customer_id
+order by 1; 
+
+
+# approach  2
+select s.customer_id ,sum(m.price) 
+from dbo.sales  as s
+join dbo.menu  as m
+on s.product_id = m.product_id 
+group by  s.customer_id
+order by 1 ; 
+
+
+Q)  Which item was purchased first by the customer after they became a member? 
+
+select  r.*  , mu.product_name 
+from 
+(
+select  * 
+from 
+(
+select  *  , 
+dense_rank() over (partition by  customer_id order by order_date) 
+as first_product
+from  
+(
+select s.customer_id, m.join_date , s.order_date,  s.product_id
+from  dbo.sales as s  
+join dbo.members as m 
+on s.order_date >= m.join_date  
+and s.customer_id  = m.customer_id
+) as p  
+) as q  
+where q.first_product = 1
+) as r  
+join  dbo.menu as mu
+on r.product_id = mu.product_id
+
+Q )  Which item was purchased right before the customer became a member?   
+
+select s.*,mu.product_name 
+from  
+(
+select  * 
+from 
+(
+select * , 
+dense_rank() over (partition by customer_id order by order_date DESC)  as last_purchase 
+from  
+(
+select  s.*, m.join_date 
+from  dbo.sales as s
+join dbo.members as m
+on  s.customer_id = m.customer_id 
+and s.order_date < m.join_date 
+) as p
+)  as q 
+where q.last_purchase =1 
+ ) as s
+ join dbo.menu as mu  
+ on  s.product_id = mu.product_id
+
+
+q)  What is the total number of items and amount spent for each member before they became a member? 
+
+select  p.customer_id, sum(mu.price) as amount_spent,  
+count(p.product_id) as items_bought  
+from  
+(
+select  s.* , m.join_date 
+from  dbo.sales as s
+join dbo.members as m
+on  s.customer_id = m.customer_id 
+and s.order_date < m.join_date 
+) as p
+join dbo.menu as mu  
+on p.product_id =  mu.product_id 
+group by  p.customer_id ;
+
+q)  If each customers’ $1 spent equates to 10 points and sushi has a 2x points multiplier — how many points would each customer have? 
+
+select  q.customer_id , sum(price_points) as points
+from 
+(
+select *  
+from dbo.sales as s
+join 
+(
+select  * , 
+CASE WHEN product_name = 'sushi' THEN price*20 
+else price*10 END as price_points 
+from dbo.menu  
+) as mu  
+on s.product_id = mu.product_id 
+) as q  
+group by q.customer_id 
+
+Q)  In the first week after a customer joins the program, (including their join date) they earn 2x points on all items; not just sushi — how many points do customer A and B have at the end of Jan21?
+
+select t.customer_id , sum(price_points) as price_points 
+from 
+(
+select  r.*,  
+CASE WHEN within_week = 1 or product_name = 'sushi' then price*20 
+else price*10 end as price_points 
+from 
+(
+SELECT q.*,m.price , m.product_name
+from  
+(
+select  p.* , 
+case when order_date <= promotion_enddate 
+and order_date >= join_date  THEN 1 else 0  
+end as within_week 
+from  
+(
+select s.*,mu.join_date, 
+mu.join_date + INTERVAL '6 day' as promotion_enddate
+from dbo.sales as s  
+join dbo.members as mu  
+on  s.customer_id = mu.customer_id 
+) as p
+) as q  
+join dbo.menu  as m
+on q.product_id = m.product_id 
+) as r 
+) as t
+where t.order_date < '2021-02-01'
+group by t.customer_id ; 

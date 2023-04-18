@@ -1,0 +1,356 @@
+-- Returns first 100 rows from tutorial.patient_list
+  SELECT 
+		patient_id,
+		physician_last_name,
+		age,
+		height_inches,
+		weight_lbs,
+		id
+ FROM tutorial.patient_list LIMIT 100;
+
+with age as (
+SELECT *,
+(CASE when age between 30 AND 60 then 'mid' else 'idk' end) as age_cat
+from tutorial.patient_list)
+SELECT physician_last_name, COUNT(physician_last_name) FROM age WHERE age_cat = 'mid'
+GROUP by 1
+ORDER by 2 DESC LIMIT 1;
+
+SELECT * FROM 
+(SELECT *, AVG(bmi) over() as avg_bmi
+FROM 
+(SELECT *, weight_lbs / height_inches AS bmi from tutorial.patient_list) p ) q
+WHERE bmi < avg_bmi
+
+-- Returns first 100 rows from tutorial.kag_conversion_data
+  SELECT impressions/interest FROM tutorial.kag_conversion_data LIMIT 100;
+ 
+ SELECT ad_id,
+ MAX(spent) as "max spent", 
+ AVG(interest) as avg_interest, 
+ MIN(impressions) as min_impressions
+ FROM tutorial.kag_conversion_data
+ GROUP by ad_id;
+ 
+SELECT (spent/impressions) as spent_as_impressions
+FROM tutorial.kag_conversion_data;
+
+SELECT fb_campaign_id, SUM(interest) as total_interest
+FROM tutorial.kag_conversion_data
+GROUP BY fb_campaign_id 
+HAVING SUM(interest) > 300
+ORDER BY total_interest;
+
+SELECT age, gender, (SUM(impressions)/SUM(interest)) as impression_interest_ratio
+FROM tutorial.kag_conversion_data
+GROUP BY age, gender
+ORDER BY impression_interest_ratio DESC;
+
+SELECT xyz_campaign_id, gender, total_conversion, approved_conversion,
+SUM(total_conversion-approved_conversion) AS total_unapproved_conversion,
+FROM tutorial.kag_conversion_data
+GROUP BY xyz_campaign_id, gender, total_conversion, approved_conversion;
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+-- Returns first 100 rows from tutorial.sat_scores
+  SELECT 
+		school,
+		teacher,
+		student_id,
+		sat_writing,
+		sat_verbal,
+		sat_math,
+		hrs_studied,
+		id
+ FROM tutorial.sat_scores LIMIT 100;
+
+-- Returns first 100 rows from tutorial.dc_bikeshare_q1_2012
+  SELECT 
+		duration,
+		duration_seconds,
+		start_time,
+		start_station,
+		start_terminal,
+		end_time,
+		end_station,
+		end_terminal,
+		bike_number,
+		rider_type,
+		id
+ FROM tutorial.dc_bikeshare_q1_2012 LIMIT 100;
+
+SELECT *, sum(duration_seconds) OVER(partition by start_terminal order by start_time ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) FROM tutorial.dc_bikeshare_q1_2012 WHERE start_time < '2012-01-08';
+
+SELECT start_terminal, duration_seconds, duration_seconds - lag(duration_seconds,1) 
+          OVER(partition by start_terminal ORDER BY duration_seconds) AS Diff
+FROM tutorial.dc_bikeshare_q1_2012 
+WHERE start_time < '2012-01-05'
+ORDER BY start_terminal, duration_seconds;
+
+select start_terminal, duration_seconds ,   
+rank()  over (partition by start_terminal order by duration_seconds) as rank_ride , 
+dense_rank()  over (partition by start_terminal order by duration_seconds) as drank_ride , 
+row_number()  over (partition by start_terminal order by duration_seconds) as rownum_ride ,  
+ntile(4)  over (partition by start_terminal order by duration_seconds) as quartile_ride
+from tutorial.dc_bikeshare_q1_2012;
+
+SELECT distinct duration_seconds, rank_ FROM 
+(SELECT start_terminal, start_time, duration_seconds,
+  ntile(100) over(order by duration_seconds DESC) as rank_
+from tutorial.dc_bikeshare_q1_2012 WHERE start_time < '2012-01-08') p;
+
+
+SELECT *,
+FIRST_value(student_id) OVER (partition by teacher) as max_marks,
+last_value(student_id) over (partition by teacher) as min_marks
+FROM
+(
+SELECT *,
+RANK() over (partition by teacher ORDER BY sat_writing) as marks
+FROM tutorial.sat_scores
+WHERE sat_writing is not NULL ) p
+WHERE marks = 1;
+
+SELECT start_time, end_time,
+date_part('minute', end_time-start_time) as Diiff FROM tutorial.dc_bikeshare_q1_2012;
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+-- Returns first 100 rows from tutorial.crunchbase_companies
+  SELECT * FROM tutorial.crunchbase_companies LIMIT 100;
+
+-- Returns first 100 rows from tutorial.crunchbase_acquisitions
+  SELECT * FROM tutorial.crunchbase_acquisitions LIMIT 100;
+
+SELECT COALESCE(companies.quarter, acquisitions.quarter) AS quarter,
+companies.companies_founded,
+acquisitions.companies_acquired
+  FROM (
+    SELECT founded_quarter AS quarter,
+    COUNT(permalink) AS companies_founded
+    FROM tutorial.crunchbase_companies
+    WHERE founded_year >= 2012
+    GROUP BY 1
+  ) companies
+  LEFT JOIN (
+    SELECT acquired_quarter AS quarter,
+    COUNT(DISTINCT company_permalink) AS companies_acquired
+    FROM tutorial.crunchbase_acquisitions
+    WHERE acquired_year >= 2012
+    GROUP BY 1
+  ) acquisitions
+  ON companies.quarter = acquisitions.quarter
+ORDER BY 1;
+
+SELECT c.name, c.founded_at_clean, a.acquired_at_cleaned,
+date_part('day', now() - date(c.founded_at_clean)) as founded,
+date_part('day', now() - date(a.acquired_at_cleaned)) as acquired
+FROM tutorial.crunchbase_companies_clean_date as c
+join tutorial.crunchbase_acquisitions_clean_date as a
+ON c.permalink = a.company_permalink 
+WHERE c.founded_at_clean is not NULL 
+and c.status = 'acquired';
+
+select  category_code ,  count(within_3years) as companies_within3 ,
+count(within_5years) as companies_within5, 
+count(within_10years) as companies_within10 , count(*) as total_companies 
+from 
+(
+select  *  , 
+case when  difference_years <=  3 then 1 else null end as within_3years, 
+case when  difference_years <=  5 and difference_years > 3  then 1 else null end as within_5years, 
+case when  difference_years <=  10 and difference_years > 5 then 1 else null end as within_10years
+from  
+(
+select  category_code,c.permalink, c.founded_at_clean ,  a.acquired_at_cleaned , 
+date_part('day',a.acquired_at_cleaned  - date(c.founded_at_clean))/365  as difference_years
+from   tutorial.crunchbase_acquisitions_clean_date  as a
+left  join  tutorial.crunchbase_companies_clean_date as c
+on  a.company_permalink  =  c.permalink 
+where c.founded_at_clean  is not null 
+) as p 
+)  as q 
+group by category_code
+;  
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+-- Returns first 100 rows from tutorial.oscar_nominees
+  SELECT * FROM tutorial.oscar_nominees LIMIT 100;
+
+-- Returns first 100 rows from tutorial.oscar_nominees
+SELECT * FROM tutorial.city_populations;
+
+SELECT *,
+CASE 
+  WHEN population_estimate_2012 > (SELECT AVG(population_estimate_2012) FROM tutorial.city_populations) then 'High'
+  ELSE 'Low'
+  END AS pop_den
+FROM tutorial.city_populations;
+
+SELECT city, RIGHT(city,5) , lower(LEFT(city,1)) FROM tutorial.city_populations;
+
+with nom_cte as (
+SELECT nominee, COUNT(*) as cou FROM tutorial.oscar_nominees
+GROUP BY nominee 
+)
+SELECT *
+FROM nom_cte 
+WHERE cou > 
+(SELECT COUNT(*) from tutorial.oscar_nominees WHERE lower(nominee) = 'akim tamiroff');
+
+SELECT 
+		year,
+		category,
+		nominee,
+		movie,
+		winner,
+		id
+ FROM tutorial.oscar_nominees LIMIT 100;
+ 
+with Wins AS (
+ SELECT nominee, COUNT(*) As Win_Count
+ FROM tutorial.oscar_nominees
+ WHERE winner = 'true'
+ GROUP BY nominee
+ ORDER BY Win_Count DESC
+ )
+SELECT nominee, Win_Count FROM Wins WHERE win_count = 
+(SELECT MAX(win_count) FROM Wins WHERE win_count < (SELECT MAX(win_count) FROM Wins));
+
+with Wins AS (
+ SELECT nominee, COUNT(*) As Win_Count
+ FROM tutorial.oscar_nominees
+ WHERE winner = 'true'
+ GROUP BY nominee
+ ORDER BY Win_Count DESC
+ )
+ SELECT * FROM (SELECT nominee, dense_rank() over (ORDER BY Win_Count DESC) AS d_rank FROM Wins) as p
+ WHERE d_rank = 2;
+ 
+SELECT nominee,
+ SUM(CASE WHEN winner = true then 1 ELSE 0 END) as wins,
+ SUM(CASE WHEN winner = false then 1 ELSE 0 END) as loses,
+ COUNT(*) AS nominee_count
+ FROM tutorial.oscar_nominees
+ GROUP BY nominee
+ ORDER BY nominee_count DESC;
+ 
+SELECT movie,
+ 100 * SUM(CASE WHEN winner = true then 1 ELSE 0 END)/COUNT(*) as wins,
+ 100 * SUM(CASE WHEN winner = false then 1 ELSE 0 END)/COUNT(*) as loses
+ FROM tutorial.oscar_nominees
+ GROUP BY movie;
+ 
+with t_count AS (
+SELECT Distinct movie,
+ SUM(CASE WHEN winner = true then 1 ELSE 0 END) as wins,
+ SUM(CASE WHEN winner = false then 1 ELSE 0 END) as loses,
+ COUNT(*) AS nominee_count
+ FROM tutorial.oscar_nominees
+ GROUP BY movie
+)
+SELECT * FROM t_count WHERE wins = 0;
+
+SELECT DISTINCT movie
+FROM
+tutorial.oscar_nominees
+WHERE
+winner = false
+AND movie NOT IN ( SELECT DISTINCT movie FROM tutorial.oscar_nominees WHERE winner =
+true);
+
+SELECT 
+DISTINCT nominee
+FROM tutorial.oscar_nominees
+WHERE nominee IN (SELECT DISTINCT nominee FROM tutorial.oscar_nominees WHERE category IN ('actor in a supporting role'))
+AND category IN ('actor in a leading role');
+
+with win As (
+SELECT year, COUNT(*) as total
+FROM tutorial.oscar_nominees
+WHERE winner = 'true'
+GROUP BY year
+ORDER BY year
+)
+SELECT * FROM win WHERE total > (SELECT total from win WHERE year = '1970');
+ ----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+-- Returns first 100 rows from tutorial.dunder_mifflin_paper_sales
+  SELECT 
+		order_id,
+		purchased_at,
+		status,
+		cancelled_at,
+		returned_at,
+		product_id,
+		product_name,
+		price,
+		discount,
+		shipping_cost,
+		quantity,
+		business_size,
+		payment_cycle,
+		account_id,
+		account_name,
+		account_manager,
+		days_to_close,
+		shipping_mode,
+		shipping_address,
+		shipping_city,
+		shipping_state,
+		shipping_zip,
+		shipping_region,
+		shipping_latitude,
+		shipping_longitude,
+		days_to_ship,
+		reviewed_at,
+		rating,
+		index,
+		review
+ FROM tutorial.dunder_mifflin_paper_sales LIMIT 100;
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+SELECT  count(distinct product_name), count(product_name) 
+ from tutorial.dunder_mifflin_paper_sales;
+ 
+ -- Returns first 100 rows from tutorial.sf_crime_incidents_2014_01
+  SELECT 
+		incidnt_num,
+		category,
+		descript,
+		day_of_week,
+		date,
+		time,
+		pd_district,
+		resolution,
+		address,
+		lon,
+		lat,
+		location,
+		id
+ FROM tutorial.sf_crime_incidents_2014_01 LIMIT 100;
+
+-- Returns first 100 rows from heather.sfpd_incidents
+  SELECT 
+		incident_id,
+		category,
+		description,
+		day,
+		date,
+		time,
+		district,
+		resolution,
+		address,
+		lat,
+		lng,
+		location,
+		id
+ FROM heather.sfpd_incidents LIMIT 100;
+ 
+ SELECT trim('()' FROM location) as trim, location
+ FROM heather.sfpd_incidents;
+ 
+ SELECT location, replace(LEFT(location,position(',' IN location) -1), '(', '') AS lattitude,
+ replace(RIGHT(location,position(',' IN location) -1), ')', '') as longtitude
+ FROM heather.sfpd_incidents;
+ 
+select trim('(' from left('(37.709725805163, -122.413623946206)',position(',' IN '(37.709725805163, -122.413623946206)')-1)) as latitude,
+trim(')' from right('(37.709725805163, -122.413623946206)',length('(37.709725805163, -122.413623946206)')-position(',' IN '(37.709725805163, -122.413623946206)'))) 
+as longitude;
+ 
+SELECT category, LEFT(category, position(' ' in category)) as FirstWord FROM tutorial.sf_crime_incidents_2014_01;

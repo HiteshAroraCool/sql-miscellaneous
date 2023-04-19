@@ -1,0 +1,78 @@
+CREATE SCHEMA dbo;
+SET search_path = dbo;
+
+CREATE TABLE car (
+  "Dealer_ID" VARCHAR(4),
+  "Model_ID" VARCHAR(4),
+  "Engine_No" VARCHAR(6),
+  "Current_Status" VARCHAR(9),
+  "Inventory_Days" VARCHAR(3),
+  "Booking_Id" VARCHAR(6)
+);
+
+INSERT INTO car
+  ("Dealer_ID", "Model_ID", "Engine_No", "Current_Status", "Inventory_Days", "Booking_Id")
+VALUES
+  ('ABC1', '123A', 'XYZ123', 'Inventory', '10', 'NULL'),
+  ('ABC1', '123C', 'XYZ134', 'Transit', 'N/A', '123ABC'),
+  ('ABC1', '123D', 'XYZ128', 'Retailed', '21', '124ABC'),
+  ('ABC2', '123B', 'XYZ128', 'Inventory', '7', '123ADF'),
+  ('ABC2', '123E', 'XYZ129', 'Transit', 'N/A', 'NULL'),
+  ('ABC2', '123C', 'XYZ125', 'Retailed', '10', '124XYZ');
+
+using chatgpt:
+CREATE SCHEMA dbo;
+SET search_path = dbo;
+
+CREATE TABLE car (
+  dealer_id VARCHAR(4),
+  model_id VARCHAR(4),
+  engine_no VARCHAR(6),
+  current_status VARCHAR(9),
+  inventory_days INTEGER, -- Corrected data type from "this is int" to "INTEGER"
+  booking_id VARCHAR(6)
+);
+
+INSERT INTO car
+  (dealer_id, model_id, engine_no, current_status, inventory_days, booking_id)
+VALUES
+  ('ABC1', '123A', 'XYZ123', 'Inventory', 10, NULL), -- Removed quotes from '10' and 'NULL'
+  ('ABC1', '123C', 'XYZ134', 'Transit', 0, '123ABC'),
+  ('ABC1', '123D', 'XYZ128', 'Retailed', 21, '124ABC'),
+  ('ABC2', '123B', 'XYZ128', 'Inventory', 7, '123ADF'),
+  ('ABC2', '123E', 'XYZ129', 'Transit', 0, NULL), -- Removed quotes from '0' and 'NULL'
+  ('ABC2', '123C', 'XYZ125', 'Retailed', 10, '124XYZ');
+
+Question 1. We need to understand the behaviour of manufacturing and stocking up of cars to manage the efficiency of
+booking.We need to improve the profitability of dealership by decreasing the inventory days. For this we can do either of two
+things- Either sell the cars quickly or keep only the relevant cars in the inventory. Let us start analyzing the data by calculating
+Model wise Average Inventory days at each dealership by overall model wise average inventory days to see if the model is
+stocked up for this particular dealer only or generally has high inventory days.
+
+approach 1:
+
+select *,
+case when avg_inventory_days_model < avg_inventory_days_M_D then 'stockup' else 'no dealer stockup' end as dealer_proformance
+from (
+SELECT 
+  model_id, 
+  dealer_id,
+  AVG(inventory_days) OVER (PARTITION BY model_id) AS avg_inventory_days_model,
+  AVG(inventory_days) OVER (PARTITION BY model_id, dealer_id) AS avg_inventory_days_M_D
+FROM dbo.car) q;
+
+approach 2:
+
+with Avg_model as (
+select Model_ID, avg(Inv_Days) as ave
+from Car
+group by Model_ID
+),
+Avg_Dealer as (
+select Dealer_ID, avg(Inv_Days) as ave
+from Car
+group by Dealer_ID
+),
+select Car.Dealer_ID, Car.Model_ID, Avg_model.ave, Avg_Dealer.ave
+from Car, Avg_model, Avg_Dealer
+where Car.Dealer_ID=Avg_Dealer.Dealer_ID and Car.Model_ID=Avg_Model.Model_Id;

@@ -214,4 +214,26 @@ where platform = 'Retail'
 group by 1,2
 order by 3 DESC LIMIT 1;
 
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
+CREATE TABLE Snapshot (
+  ID VARCHAR(10),
+  ParentID VARCHAR(10),
+  CreatedTimestamp DATETIME,
+  FirstResponseTime DECIMAL(10,2),
+  SolvedTimestamp DATETIME,
+  AgentID VARCHAR(10),
+  Rating INT,
+  Vertical VARCHAR(20),
+  Status VARCHAR(50)
+);
+
+INSERT INTO Snapshot
+  (ID, ParentID, CreatedTimestamp, FirstResponseTime, SolvedTimestamp, AgentID, Rating, Vertical, Status)
+VALUES
+  ('a', 'b', '2021-02-25 12:00:00', 45, null, 'XY', null, 'Profile', 'Customer response pending'),
+  ('b', 'b', '2021-01-13 02:00:00', 123, '2021-01-15', 'AJ', 2, 'Profile', 'Solved'),
+  ('c', '-', '2021-01-01 15:00:00', 24, '2021-05-01', 'YH', 3, 'Profile', 'Solved'),
+  ('d', '-', '2021-01-01 15:00:00', 230, '2021-05-14', 'YW', 4, 'UPI', 'Solved');
+  
+  

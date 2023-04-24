@@ -76,3 +76,17 @@ group by Dealer_ID
 select Car.Dealer_ID, Car.Model_ID, Avg_model.ave, Avg_Dealer.ave
 from Car, Avg_model, Avg_Dealer
 where Car.Dealer_ID=Avg_Dealer.Dealer_ID and Car.Model_ID=Avg_Model.Model_Id;
+
+Question 2. We can also determine the performance of a dealership by calculating Booking and total inventory ratio. (The
+Cars in Transit are also in inventory). Rank the dealerships on the basis of this ratio to compare the dealership
+performance.Higher the ratio better is the performance
+
+Select *, row_number() over(order by Ratio desc) as rank_Dealers
+from (
+Select
+(count(distinct(Case when Booking_Id is not null then Booking_Id else null end )) as Booking/
+count(distinct(Case when Current Status in (‘Transit’,’Inventory’) then Booking_Id else null end )) as Total_Inventory ) as Ratio,
+Dealer_ID
+* from
+Car
+Group by Dealer_ID) base;

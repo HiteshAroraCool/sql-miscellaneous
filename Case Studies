@@ -1,0 +1,215 @@
+CREATE SCHEMA dbo;
+SET search_path = dbo;
+
+CREATE TABLE car (
+  "Dealer_ID" VARCHAR(4),
+  "Model_ID" VARCHAR(4),
+  "Engine_No" VARCHAR(6),
+  "Current_Status" VARCHAR(9),
+  "Inventory_Days" VARCHAR(3),
+  "Booking_Id" VARCHAR(6)
+);
+
+INSERT INTO car
+  ("Dealer_ID", "Model_ID", "Engine_No", "Current_Status", "Inventory_Days", "Booking_Id")
+VALUES
+  ('ABC1', '123A', 'XYZ123', 'Inventory', '10', 'NULL'),
+  ('ABC1', '123C', 'XYZ134', 'Transit', 'N/A', '123ABC'),
+  ('ABC1', '123D', 'XYZ128', 'Retailed', '21', '124ABC'),
+  ('ABC2', '123B', 'XYZ128', 'Inventory', '7', '123ADF'),
+  ('ABC2', '123E', 'XYZ129', 'Transit', 'N/A', 'NULL'),
+  ('ABC2', '123C', 'XYZ125', 'Retailed', '10', '124XYZ');
+
+using chatgpt:
+CREATE SCHEMA dbo;
+SET search_path = dbo;
+
+CREATE TABLE car (
+  dealer_id VARCHAR(4),
+  model_id VARCHAR(4),
+  engine_no VARCHAR(6),
+  current_status VARCHAR(9),
+  inventory_days INTEGER, -- Corrected data type from "this is int" to "INTEGER"
+  booking_id VARCHAR(6)
+);
+
+INSERT INTO car
+  (dealer_id, model_id, engine_no, current_status, inventory_days, booking_id)
+VALUES
+  ('ABC1', '123A', 'XYZ123', 'Inventory', 10, NULL), -- Removed quotes from '10' and 'NULL'
+  ('ABC1', '123C', 'XYZ134', 'Transit', 0, '123ABC'),
+  ('ABC1', '123D', 'XYZ128', 'Retailed', 21, '124ABC'),
+  ('ABC2', '123B', 'XYZ128', 'Inventory', 7, '123ADF'),
+  ('ABC2', '123E', 'XYZ129', 'Transit', 0, NULL), -- Removed quotes from '0' and 'NULL'
+  ('ABC2', '123C', 'XYZ125', 'Retailed', 10, '124XYZ');
+
+Question 1. We need to understand the behaviour of manufacturing and stocking up of cars to manage the efficiency of
+booking.We need to improve the profitability of dealership by decreasing the inventory days. For this we can do either of two
+things- Either sell the cars quickly or keep only the relevant cars in the inventory. Let us start analyzing the data by calculating
+Model wise Average Inventory days at each dealership by overall model wise average inventory days to see if the model is
+stocked up for this particular dealer only or generally has high inventory days.
+
+approach 1:
+
+select *,
+case when avg_inventory_days_model < avg_inventory_days_M_D then 'stockup' else 'no dealer stockup' end as dealer_proformance
+from (
+SELECT 
+  model_id, 
+  dealer_id,
+  AVG(inventory_days) OVER (PARTITION BY model_id) AS avg_inventory_days_model,
+  AVG(inventory_days) OVER (PARTITION BY model_id, dealer_id) AS avg_inventory_days_M_D
+FROM dbo.car) q;
+
+approach 2:
+
+with Avg_model as (
+select Model_ID, avg(Inv_Days) as ave
+from Car
+group by Model_ID
+),
+Avg_Dealer as (
+select Dealer_ID, avg(Inv_Days) as ave
+from Car
+group by Dealer_ID
+),
+select Car.Dealer_ID, Car.Model_ID, Avg_model.ave, Avg_Dealer.ave
+from Car, Avg_model, Avg_Dealer
+where Car.Dealer_ID=Avg_Dealer.Dealer_ID and Car.Model_ID=Avg_Model.Model_Id;
+
+Question 2. We can also determine the performance of a dealership by calculating Booking and total inventory ratio. (The
+Cars in Transit are also in inventory). Rank the dealerships on the basis of this ratio to compare the dealership
+performance.Higher the ratio better is the performance
+
+Select *, row_number() over(order by Ratio desc) as rank_Dealers
+from (
+Select
+(count(distinct(Case when Booking_Id is not null then Booking_Id else null end )) as Booking/
+count(distinct(Case when Current Status in (‘Transit’,’Inventory’) then Booking_Id else null end )) as Total_Inventory ) as Ratio,
+Dealer_ID
+* from
+Car
+Group by Dealer_ID) base;
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+CREATE TABLE data_mart (
+  week_date DATE,
+  region VARCHAR(52),
+  platform VARCHAR(52),
+  segment VARCHAR(52),
+  customer_type VARCHAR(52),
+  transactions VARCHAR(52),
+  sales VARCHAR(52)
+);
+
+INSERT INTO data_mart
+  (week_date, region, platform, segment, customer_type, transactions, sales)
+VALUES
+  ('2020-09-09', 'OCEANIA', 'Shopify', 'C3', 'New', '610', '110033.89'),
+  ('2020-07-29', 'AFRICA', 'Retail', 'C1', 'New', '110692', '3053771.19'),
+  ('2020-07-22', 'EUROPE', 'Shopify', 'C4', 'Existing', '24', '8101.54'),
+  ('2020-05-13', 'AFRICA', 'Shopify', null, 'Guest', '5287', '1003301.37'),
+  ('2019-07-24', 'ASIA', 'Retail', 'C1', 'New', '127342', '3151780.41'),
+  ('2019-07-10', 'CANADA', 'Shopify', 'F3', 'New', '51', '8844.93'),
+  ('2019-06-26', 'OCEANIA', 'Retail', 'C3', 'New', '152921', '5551385.36'),
+  ('2019-05-29', 'SOUTH AMERICA', 'Shopify', null, 'New', '53', '10056.2'),
+  ('2018-08-22', 'AFRICA', 'Retail', null, 'Existing', '31721', '1718863.58'),
+  ('2018-07-25', 'SOUTH AMERICA', 'Retail', null, 'New', '2136', '8');
+
+* Add a week_number as the second column for each week_date value, for example any value from the 1st of January to 7th of January will be 1, 8th to 14th will be 2 etc.
+* Add a month_number with the calendar month for each week_date value as the 3rd column
+* Add a calendar_year column as the 4th column containing either 2018, 2019 or 2020 values
+
+Create table clean_weekly_sales as
+Select * , week(week_date) as week_number,month(week_date) as month_number,year(week_date) as calander_year
+from data_mart;
+
+* Add a new demographic column using the following mapping for the first letter in the segment values
+
+CREATE TABLE table1 AS
+SELECT *,
+       CASE
+           WHEN RIGHT(segment, 1) = '1' THEN 'Young Adults'
+           WHEN RIGHT(segment, 1) = '2' THEN 'Middle Aged'
+           WHEN RIGHT(segment, 1) IN ('3', '4') THEN 'Retirees'
+           ELSE NULL
+       END AS Age_Band,
+       CASE
+           WHEN LEFT(segment, 1) = 'C' THEN 'Couples'
+           WHEN LEFT(segment, 1) = 'F' THEN 'Families'
+           ELSE NULL
+       END AS Demographic
+FROM clean_weekly_sales;
+**Schema (PostgreSQL v15)**
+
+    CREATE TABLE data_mart (
+      week_date DATE,
+      region VARCHAR(52),
+      platform VARCHAR(52),
+      segment VARCHAR(52),
+      customer_type VARCHAR(52),
+      transactions VARCHAR(52),
+      sales VARCHAR(52)
+    );
+    
+    INSERT INTO data_mart
+      (week_date, region, platform, segment, customer_type, transactions, sales)
+    VALUES
+      ('2020-09-09', 'OCEANIA', 'Shopify', 'C3', 'New', '610', '110033.89'),
+      ('2020-07-29', 'AFRICA', 'Retail', 'C1', 'New', '110692', '3053771.19'),
+      ('2020-07-22', 'EUROPE', 'Shopify', 'C4', 'Existing', '24', '8101.54'),
+      ('2020-05-13', 'AFRICA', 'Shopify', null, 'Guest', '5287', '1003301.37'),
+      ('2019-07-24', 'ASIA', 'Retail', 'C1', 'New', '127342', '3151780.41'),
+      ('2019-07-10', 'CANADA', 'Shopify', 'F3', 'New', '51', '8844.93'),
+      ('2019-06-26', 'OCEANIA', 'Retail', 'C3', 'New', '152921', '5551385.36'),
+      ('2019-05-29', 'SOUTH AMERICA', 'Shopify', null, 'New', '53', '10056.2'),
+      ('2018-08-22', 'AFRICA', 'Retail', null, 'Existing', '31721', '1718863.58'),
+      ('2018-07-25', 'SOUTH AMERICA', 'Retail', null, 'New', '2136', '8');
+    
+    -- Add week_number, month_number, and calendar_year columns
+    CREATE TABLE clean_weekly_sales AS
+    SELECT *, EXTRACT(WEEK FROM week_date) AS week_number,
+           EXTRACT(MONTH FROM week_date) AS month_number,
+           EXTRACT(YEAR FROM week_date) AS calendar_year
+    FROM data_mart;
+    
+    -- Add demographic columns using the mapping provided
+    CREATE TABLE table1 AS
+    SELECT *, CASE WHEN RIGHT(segment, 1) = '1' THEN 'Young Adults'
+                 WHEN RIGHT(segment, 1) = '2' THEN 'Middle Aged'
+                 WHEN RIGHT(segment, 1) IN ('3', '4') THEN 'Retirees'
+                 ELSE NULL END AS age_band,
+           CASE WHEN LEFT(segment, 1) = 'C' THEN 'Couples'
+                 WHEN LEFT(segment, 1) = 'F' THEN 'Families'
+                 ELSE NULL END AS demographic
+    FROM clean_weekly_sales;
+---
+
+| week_date                | region        | platform | segment | customer_type | transactions | sales      | week_number | month_number | calendar_year | age_band     | demographic |
+| ------------------------ | ------------- | -------- | ------- | ------------- | ------------ | ---------- | ----------- | ------------ | ------------- | ------------ | ----------- |
+| 2020-09-09T00:00:00.000Z | OCEANIA       | Shopify  | C3      | New           | 610          | 110033.89  | 37          | 9            | 2020          | Retirees     | Couples     |
+| 2020-07-29T00:00:00.000Z | AFRICA        | Retail   | C1      | New           | 110692       | 3053771.19 | 31          | 7            | 2020          | Young Adults | Couples     |
+| 2020-07-22T00:00:00.000Z | EUROPE        | Shopify  | C4      | Existing      | 24           | 8101.54    | 30          | 7            | 2020          | Retirees     | Couples     |
+| 2020-05-13T00:00:00.000Z | AFRICA        | Shopify  |         | Guest         | 5287         | 1003301.37 | 20          | 5            | 2020          |              |             |
+| 2019-07-24T00:00:00.000Z | ASIA          | Retail   | C1      | New           | 127342       | 3151780.41 | 30          | 7            | 2019          | Young Adults | Couples     |
+| 2019-07-10T00:00:00.000Z | CANADA        | Shopify  | F3      | New           | 51           | 8844.93    | 28          | 7            | 2019          | Retirees     | Families    |
+| 2019-06-26T00:00:00.000Z | OCEANIA       | Retail   | C3      | New           | 152921       | 5551385.36 | 26          | 6            | 2019          | Retirees     | Couples     |
+| 2019-05-29T00:00:00.000Z | SOUTH AMERICA | Shopify  |         | New           | 53           | 10056.2    | 22          | 5            | 2019          |              |             |
+| 2018-08-22T00:00:00.000Z | AFRICA        | Retail   |         | Existing      | 31721        | 1718863.58 | 34          | 8            | 2018          |              |             |
+| 2018-07-25T00:00:00.000Z | SOUTH AMERICA | Retail   |         | New           | 2136         | 8          | 30          | 7            | 2018          |              |             |
+
+---
+
+* What is the total sales for each region for each month?
+
+select region,month_number,sum(sales) as total_sales
+from table1
+group by 1,2;
+
+* Which age_band and demographic values contribute the most to Retail sales?
+
+select age_band, demographic,sum(sales) as total_sales
+from table1
+where platform = 'Retail'
+group by 1,2
+order by 3 DESC LIMIT 1;

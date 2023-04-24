@@ -213,3 +213,5 @@ from table1
 where platform = 'Retail'
 group by 1,2
 order by 3 DESC LIMIT 1;
+
+

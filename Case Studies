@@ -236,4 +236,40 @@ VALUES
   ('c', '-', '2021-01-01 15:00:00', 24, '2021-05-01', 'YH', 3, 'Profile', 'Solved'),
   ('d', '-', '2021-01-01 15:00:00', 230, '2021-05-14', 'YW', 4, 'UPI', 'Solved');
   
-  
+  * We also want to see if there are agents from a particular vertical who are not performing good.We want to see this metric on overall level till date.Calculate Average Rating for each Vertical on an overall level.
+
+select avg(rating),Vertical 
+from Snapshot
+group by Vertical;
+
+* To track the performance or output of the team , it is important to check the inflow volume the team is receiving. The team has decided to calculate average cases received per day.Find this trend week over week
+
+select week(CreatedTimestamp) as week_number, count(distinct ID)/7 
+from Snapshot
+group by 1;
+
+* Amazon has decided the ideal first response time is <=120 mins.Calculate the % of cases which were reached out by the agent within the ideal time for each week.
+
+select week(CreatedTimestamp) as week_number, 
+sum(case when FirstResponseTime <= 120 then 1 else 0 end)*100/count(distinct ID) as FRT
+from Snapshot
+group by 1;
+
+* Overall Handing Time is also an important metric to track agent/business performance. This metric is also used to avoid churn.Suppose the ideal case closed time is <=2 days.Calculate the % of cases which were resolved with the ideal time
+
+select week(CreatedTimestamp) as week_number, 
+sum(case when datediff(SolvedTimestamp,CreatedTimestamp) <= 2 then 1 else 0 end)*100/count(distinct ID) as FRT
+from Snapshot
+group by 1;
+
+* The customer dissatisfaction can be reflected by the number of times the customer reopens the case. Suppose
+you raise a request on an ecommerce platform and the request is closed by the agent. If you reopen the case or reply on the
+same message thread the case is considered to be reopened.Help the team write a query for the reopen% of the cases i.e
+cases which were not first contact resolution.Find this metric week over week so that dashboard can have all the metrics at
+the same granularity.
+
+select week(A.CreatedTimestamp) as week_number, 
+count(distinct (case when B.ParentID is not NULL then A.ID else Null end))*100/count(distinct A.ID) as ReOpen
+from Snapshot as A left join Snapshot as B
+on A.ID = B.ParentID
+GROUP BY week_number;

@@ -273,3 +273,44 @@ count(distinct (case when B.ParentID is not NULL then A.ID else Null end))*100/c
 from Snapshot as A left join Snapshot as B
 on A.ID = B.ParentID
 GROUP BY week_number;
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+CREATE TABLE school (
+  `StudID` VARCHAR(1),
+  `Class` INTEGER,
+  `Weight` INTEGER
+);
+
+INSERT INTO school
+  (`StudID`, `Class`, `Weight`)
+VALUES
+  ('A', '8', '50'),
+  ('B', '9', '60'),
+  ('A', '8', '55'),
+  ('B', '9', '70');
+  
+CREATE TABLE student as
+  select *,
+  concat(StudID, '-', Class) as studentid
+  from school
+
+* Write a query to find the minimum number of such students such that sum of their weights is >=200
+
+select number from (
+select *, row_number() over (order by running_total) as number from (
+select *, sum(weight) over (order by weight desc) as running_total
+from school) p ) q
+where running_total >= 200;
+
+* Write a query to find the average weight for each group where class 1,2 is Group1, Class 3,4 is a Group2 , Class 5,6 is Group3 ,Class 7,8 is Group4 ,Class 9,10 is Group5.
+Show these group averages as separate columns.
+
+select grouped, avg(weight) from (
+select *,
+	case
+    	when class in (7,8) then 'group 1'
+        when class in (9,10) then 'group 2'
+     else NULL end as grouped
+from school) p
+group by grouped
